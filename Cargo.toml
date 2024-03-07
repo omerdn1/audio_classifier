@@ -1,0 +1,9 @@
+[package]
+name = "audio_classifier"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+hound = "3.5.1"
+tract-onnx = "0.21.1"
+
