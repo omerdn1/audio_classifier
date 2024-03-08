@@ -1,26 +1,28 @@
 // `ffmpeg` command to run to transform the audio file to an input file accpeted by yamnet
 // ffmpeg -i white.wav -acodec pcm_f32le -ar 16000 -ac 1 -f wav white.wav
 
-use std::collections::HashMap;
 use std::io::BufRead;
 use std::path::Path;
 use tract_onnx::prelude::*;
 use tract_onnx::tract_hir::tract_ndarray::Axis;
 
 fn main() -> TractResult<()> {
+    // Display execution time
+    let now = std::time::Instant::now();
+
+    // Read and preprocess the audio file
+    let audio_data = preprocess_audio("/Users/omerdangoor/Downloads/pele3.wav")?;
+
     // Load the ONNX model
-    let model_path = Path::new("./models/yamnet.onnx");
+    let model_path = Path::new("./models/yamnetv2.onnx");
     let model = tract_onnx::onnx()
         .model_for_path(model_path)?
         .with_input_fact(
             0,
-            InferenceFact::dt_shape(f32::datum_type(), tvec!(1, 1, 96, 64)),
+            InferenceFact::dt_shape(f32::datum_type(), tvec!(audio_data.shape()[0])),
         )?
         .into_optimized()?
         .into_runnable()?;
-
-    // Read and preprocess the audio file
-    let audio_data = preprocess_audio("/Users/omerdangoor/Downloads/blade.wav")?;
 
     // Run the model
     let result = model.run(tvec!(audio_data.into()))?;
@@ -41,6 +43,8 @@ fn main() -> TractResult<()> {
     for label in top_labels.iter() {
         println!("{}", label);
     }
+
+    println!("\nExecution time: {}s", now.elapsed().as_secs_f32());
     Ok(())
 }
 
@@ -60,11 +64,8 @@ fn preprocess_audio(audio_path: &str) -> TractResult<Tensor> {
         samples
     };
 
-    // Reshape the audio data to the expected input shape [1, 1, 96, 64]
-    // This is a placeholder; adjust the reshaping logic based on how the model expects the data
-    let reshaped_audio_data = reshape_audio_data(mono_samples, 96, 64)?;
-
-    Ok(reshaped_audio_data)
+    // Reshape the audio data to the expected input shape
+    tensor1(&mono_samples).into_shape(&[mono_samples.len()])
 }
 
 fn stereo_to_mono(samples: &[f32]) -> Vec<f32> {
@@ -74,10 +75,8 @@ fn stereo_to_mono(samples: &[f32]) -> Vec<f32> {
         .collect()
 }
 
+// For models with more robust shapes
 fn reshape_audio_data(samples: Vec<f32>, height: usize, width: usize) -> TractResult<Tensor> {
-    // Placeholder function to reshape the audio data
-    // Implement this based on the specific requirements of your model
-    // The following is a simplistic approach and might not be correct:
     let total_size = height * width;
     let mut reshaped = vec![0.0; total_size];
     let samples_len = samples.len().min(total_size);
